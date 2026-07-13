@@ -1,12 +1,29 @@
-# SAP-2-NMOS
+# SAP2NMOS
 
-[![Docker](https://github.com/Gemini2350/SAP-2-NMOS/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Gemini2350/SAP-2-NMOS/actions/workflows/docker-publish.yml)
-[![Docker Hub](https://img.shields.io/docker/v/gemini2350/sap-2-nmos?label=docker%20hub)](https://hub.docker.com/r/gemini2350/sap-2-nmos)
+[![Docker](https://github.com/Gemini2350/SAP2NMOS/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Gemini2350/SAP2NMOS/actions/workflows/docker-publish.yml)
+[![Docker Hub](https://img.shields.io/docker/v/gemini2350/sap2nmos?label=docker%20hub)](https://hub.docker.com/r/gemini2350/sap2nmos)
 
 Desktop tool (Windows / macOS) that listens to **SAP/SDP announcements** (AES67 style,
 239.255.255.255:9875) and registers the discovered streams as **senders in an NMOS IS-04
 registry** — including a GUI that shows every discovered stream and lets you add streams
 manually by pasting an SDP.
+
+## Quick start (Docker, Linux host)
+
+```sh
+docker run -d --name sap2nmos \
+  --network host --restart always \
+  -v sap2nmos-config:/config \
+  gemini2350/sap2nmos:latest
+```
+
+Open the UI at `http://<host>:8085/ui/` — the NMOS registry is found automatically via
+unicast DNS-SD; discovered SAP streams appear in the table and get registered. To update:
+
+```sh
+docker pull gemini2350/sap2nmos:latest && docker rm -f sap2nmos
+# then re-run the docker run command above
+```
 
 ## Features
 
@@ -74,7 +91,7 @@ For a native window install the WebKit2GTK bindings first
 
 ## Docker
 
-CI publishes `gemini2350/sap-2-nmos` (amd64 + arm64) to Docker Hub on every push to main:
+CI publishes `gemini2350/sap2nmos` (amd64 + arm64) to Docker Hub on every push to main:
 
 ```sh
 docker compose pull && docker compose up -d    # use the CI image

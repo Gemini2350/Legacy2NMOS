@@ -12,7 +12,7 @@
 #
 # Hardcoded — change here if you ever rename the Docker Hub repo:
 #   - Username  : gemini2350
-#   - Image repo: gemini2350/sap-2-nmos
+#   - Image repo: gemini2350/sap2nmos
 
 name: Docker
 
@@ -58,7 +58,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: gemini2350/sap-2-nmos
+          images: gemini2350/sap2nmos
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ steps.version.outputs.version }},enable={{is_default_branch}}
