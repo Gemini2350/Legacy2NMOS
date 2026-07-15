@@ -28,6 +28,11 @@ def main():
     engine = Engine(config)
     server = make_server(engine, config)
     threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    from sap2nmos.is12 import Is12Server
+    is12 = Is12Server(engine, config)
+    is12.start()
+
     engine.start()
 
     url = f"http://127.0.0.1:{config['http_port']}/ui/"
@@ -58,6 +63,7 @@ def main():
         pass
     finally:
         engine.stop()
+        is12.stop()
         server.shutdown()
 
 

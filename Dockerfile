@@ -12,6 +12,6 @@ COPY sap2nmos/ sap2nmos/
 ENV XDG_CONFIG_HOME=/config
 VOLUME /config
 
-EXPOSE 8085
+EXPOSE 8085 8086
 
 CMD ["python", "app.py", "--headless"]

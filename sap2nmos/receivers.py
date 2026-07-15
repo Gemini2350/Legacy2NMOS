@@ -47,6 +47,7 @@ class ReceiverManager:
         self.devices = []     # discovered Dante devices (dataclasses)
         self.devices_updated = 0.0
         self._netaudio_missing_logged = False
+        self.on_status = None  # set by the IS-12 server (BCP-008 monitors)
         for r in config["receivers"]:
             rx = ReceiverMap(**r)
             self.receivers[rx.nmos_id] = rx
@@ -121,6 +122,8 @@ class ReceiverManager:
                 self.state[nmos_id]["active"] = dict(st, master_enable=False)
                 st["activation"] = {"mode": None, "requested_time": None,
                                     "activation_time": _now_ts()}
+            if self.on_status:
+                self.on_status(nmos_id)
         return st
 
     def _activate(self, rx, st):
@@ -150,6 +153,8 @@ class ReceiverManager:
             self.log(f"  -> {s['step']}"
                      + ("" if "ack" not in s
                         else f" ack={s['ack']}") + ("" if apply_mode else " (dry-run)"))
+        if self.on_status:
+            self.on_status(rx.nmos_id)
 
     # ------------------------------------------------------------- devices
 

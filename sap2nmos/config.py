@@ -19,6 +19,7 @@ DEFAULTS = {
     "manual_sdps": [],
     "receivers": [],
     "apply_mode": False,
+    "ncp_port": 8086,
     "device_scan_interval": 60,
 }
 

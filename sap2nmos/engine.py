@@ -74,6 +74,7 @@ class Engine:
         self._rx_device = None
         self.receivers = ReceiverManager(config, self._log)
         self._receivers_synced = False
+        self.on_receivers_changed = None  # set by the IS-12 server
         self._sources = {}
         self._flows = {}
         self._senders = {}
@@ -443,6 +444,8 @@ class Engine:
         rx = self.receivers.add(label, dante_device_ip, dante_base_channel, channels)
         if self._node_registered:
             self._sync_receivers()
+        if self.on_receivers_changed:
+            self.on_receivers_changed()
         return rx
 
     def remove_receiver(self, nmos_id):
@@ -456,6 +459,8 @@ class Engine:
             except requests.RequestException:
                 pass
             self._sync_receivers()
+        if self.on_receivers_changed:
+            self.on_receivers_changed()
         return True
 
     def _find_existing_sender(self, sdp):
@@ -700,6 +705,9 @@ class Engine:
             "controls": [{
                 "href": f"http://{ip}:{port}/x-nmos/connection/v1.1/",
                 "type": "urn:x-nmos:control:sr-ctrl/v1.1",
+            }, {
+                "href": f"ws://{ip}:{self.config['ncp_port']}/x-nmos/ncp/v1.0",
+                "type": "urn:x-nmos:control:ncp/v1.0",
             }],
         }
 

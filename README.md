@@ -48,6 +48,21 @@ docker pull gemini2350/sap2nmos:latest && docker rm -f sap2nmos
 - Works without a registry too — discovery keeps running, registration resumes when
   the registry becomes reachable
 
+### Receiver side (NMOS → Dante)
+
+- Exposes AES67-enabled Dante devices as **NMOS receivers** (IS-04) and hosts the
+  **IS-05 Connection API**: an NMOS controller patches a sender to the receiver and
+  the SDP is translated into reverse-engineered Dante control commands (`0x3410` +
+  `0x3201`, UDP 4440) — see `docs/dante-protocol-reverse-engineering.md`
+- **DRY-RUN by default**: real Dante commands are only sent when ARMED is enabled in
+  the settings. ⚠️ The `0x3410` target-channel field is still a hypothesis — verify
+  against a test device before arming.
+- **BCP-008-01 receiver monitoring via IS-12**: one NcReceiverMonitor per receiver
+  (WebSocket control endpoint `urn:x-nmos:control:ncp/v1.0`, port 8086). Connection
+  status is fed from the Dante command ACKs, so NMOS controllers can see whether a
+  patch actually reached the device.
+- Dante device inventory in the UI (requires the optional `netaudio` package)
+
 ## Run from source
 
 ```sh
