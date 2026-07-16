@@ -54,9 +54,16 @@ konsistent die **AES67-Empfangs-Konfiguration**.
 
 ## Feldkarte Opcode `0x3201` (112 Byte)
 
-Diff über die 3 Instanzen (#509, #681, #794): **nur zwei Bytes ändern sich** —
-die Transaction-ID (Offset 4–5) und **Offset 102** (`0x01` → `0x02`). Alles andere
-ist identisch.
+> **Korrektur (Dante3.pcapng, 2026-07-16):** Die ursprüngliche Annahme, Offset 102
+> sei der Ziel-RX-Kanal, war falsch. **Offset 102 = Quell-Stream-Kanal.** Der
+> **Ziel-Dante-RX-Kanal** steht in **zwei** Feldern: `@96:98` (Kanalnummer direkt)
+> und `@52:54` (Begleitwert). Byte-genau bestätigt: Kanal 1 → (`@52:54`=0x0002,
+> `@96:98`=0x0001), Kanal 2 → (0x0008, 0x0002). Der Bug „nur Kanal 1 geschaltet"
+> kam daher, dass beide Zielfelder ungepatcht auf Kanal 1 blieben.
+
+Diff der frühen Captures (#509, #681, #794): dort änderte sich nur Transaction-ID
+und Offset 102 — weil alle denselben Ziel-Kanal hatten und nur der Quellkanal
+variierte.
 
 ```
 Offset  Bytes           Bedeutung (bestätigt / vermutet)
@@ -66,11 +73,11 @@ Offset  Bytes           Bedeutung (bestätigt / vermutet)
   6:8   3201            Opcode                           [bestätigt]
  8:10   0000            Trenner                          [bestätigt]
    16   4202            ? Flow-/Format-Kennung           [vermutet]
-   35   03              ?                                [offen]
-   47   40              ?                                [offen]
+ 52:54  00 02 / 00 08   Ziel-Dante-Kanal (Begleitwert)   [BESTÄTIGT ch1/ch2; >2 extrapoliert]
    68   c0 a8 01 64     Source-IP 192.168.1.100 (Sender, unicast)  [BESTÄTIGT]
    76   0001e240        0x1E240 (=123456) Session-/Stream-Feld     [offen]
-  102   01..06          >> QUELL-Kanal im Stream <<                 [BESTÄTIGT: nahm 1..6 an]
+ 96:98  00 01 / 00 02   >> ZIEL-Dante-RX-Kanal <<                   [BESTÄTIGT via Dante3]
+  102   01..06          >> QUELL-Stream-Kanal <<                    [BESTÄTIGT: 1..6]
   106   13 8c           RTP-Port 5004                               [BESTÄTIGT]
   108   ef 01 01 01     Multicast 239.1.1.1                         [BESTÄTIGT]
 

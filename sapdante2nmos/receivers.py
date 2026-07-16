@@ -28,10 +28,11 @@ def _fresh_state():
     return {
         "staged": empty_staged(),
         "active": empty_staged(),
-        "summary": {"active": False, "source": ""},
+        "summary": {"active": False, "source": "", "sender_id": None},
         "last_result": [],       # translate() steps of the last activation
         "last_ack": None,        # True/False after --apply, None in DRY-RUN
         "last_activation": 0,
+        "stream_health": "none",  # 'connected' | 'no_audio' | 'none'
     }
 
 
@@ -47,7 +48,7 @@ class ReceiverManager:
         self.devices = []     # discovered Dante devices (dataclasses)
         self.devices_updated = 0.0
         self._netaudio_missing_logged = False
-        self.on_status = None  # set by the IS-12 server (BCP-008 monitors)
+        self._status_listeners = []  # fns(nmos_id) — engine + IS-12 monitors
         for r in config["receivers"]:
             rx = ReceiverMap(**r)
             self.receivers[rx.nmos_id] = rx
@@ -86,6 +87,23 @@ class ReceiverManager:
     def get(self, nmos_id):
         return self.receivers.get(nmos_id)
 
+    def add_status_listener(self, fn):
+        self._status_listeners.append(fn)
+
+    def _notify_status(self, nmos_id):
+        for fn in self._status_listeners:
+            try:
+                fn(nmos_id)
+            except Exception as e:  # noqa: BLE001
+                self.log(f"status listener error: {e}")
+
+    def subscription(self, nmos_id):
+        """Current IS-04 subscription {sender_id, active} for a receiver."""
+        with self.lock:
+            s = self.state[nmos_id]["summary"]
+            return {"sender_id": s.get("sender_id") if s["active"] else None,
+                    "active": bool(s["active"])}
+
     def staged(self, nmos_id):
         with self.lock:
             return self.state[nmos_id]["staged"]
@@ -118,12 +136,13 @@ class ReceiverManager:
             self._activate(rx, st)
         elif body.get("master_enable") is False and act.get("mode") == "activate_immediate":
             with self.lock:
-                self.state[nmos_id]["summary"] = {"active": False, "source": ""}
+                self.state[nmos_id]["summary"] = {"active": False, "source": "",
+                                                  "sender_id": None}
+                self.state[nmos_id]["stream_health"] = "none"
                 self.state[nmos_id]["active"] = dict(st, master_enable=False)
                 st["activation"] = {"mode": None, "requested_time": None,
                                     "activation_time": _now_ts()}
-            if self.on_status:
-                self.on_status(nmos_id)
+            self._notify_status(nmos_id)
         return st
 
     def _activate(self, rx, st):
@@ -144,6 +163,7 @@ class ReceiverManager:
             state["active"] = dict(st, master_enable=True)
             state["summary"] = {
                 "active": True,
+                "sender_id": st.get("sender_id"),
                 "source": f"{sdp.source_ip} -> {sdp.multicast_ip}:{sdp.port} "
                           f"({sdp.channels}ch)",
             }
@@ -153,8 +173,7 @@ class ReceiverManager:
             self.log(f"  -> {s['step']}"
                      + ("" if "ack" not in s
                         else f" ack={s['ack']}") + ("" if apply_mode else " (dry-run)"))
-        if self.on_status:
-            self.on_status(rx.nmos_id)
+        self._notify_status(rx.nmos_id)
 
     # ------------------------------------------------------------- devices
 
@@ -168,6 +187,47 @@ class ReceiverManager:
         with self.lock:
             self.devices = devices
             self.devices_updated = time.time()
+        self._update_stream_health()
+
+    def _update_stream_health(self):
+        """Recompute each active receiver's RTP flow health from the scan and
+        push a status update when it changed (feeds the BCP-008 monitors)."""
+        from .dante_devices import stream_health
+        by_ip = {}
+        with self.lock:
+            for d in self.devices:
+                by_ip[d.ip] = d
+            changed = []
+            for rid, rx in self.receivers.items():
+                state = self.state[rid]
+                if not state["summary"]["active"]:
+                    continue
+                dev = by_ip.get(rx.dante_device_ip)
+                if dev is None:
+                    health = "unknown"
+                else:
+                    codes = [dev.rx_status.get(rx.dante_base_channel + i)
+                             for i in range(rx.channels)]
+                    healths = {stream_health(c) for c in codes}
+                    if "no_audio" in healths:
+                        health = "no_audio"
+                    elif healths == {"connected"}:
+                        health = "connected"
+                    elif "connected" in healths:
+                        health = "no_audio"  # some channels missing audio
+                    else:
+                        health = "none"
+                if health != state["stream_health"]:
+                    state["stream_health"] = health
+                    changed.append(rid)
+        for rid in changed:
+            self.log(f"RTP flow health for {self.receivers[rid].label}: "
+                     f"{self.state[rid]['stream_health']}")
+            self._notify_status(rid)
+
+    def stream_health(self, nmos_id):
+        with self.lock:
+            return self.state[nmos_id]["stream_health"]
 
     def scan_available(self):
         try:
@@ -195,6 +255,8 @@ class ReceiverManager:
                     "channels": rx.channels,
                     "active": s["summary"]["active"],
                     "source": s["summary"]["source"],
+                    "sender_id": s["summary"].get("sender_id"),
+                    "stream_health": s["stream_health"],
                     "last_ack": s["last_ack"],
                     "last_activation": s["last_activation"],
                     "last_result": s["last_result"],

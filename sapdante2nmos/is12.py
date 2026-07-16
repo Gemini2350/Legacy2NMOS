@@ -63,25 +63,31 @@ def _monitor_status(rx_state, apply_mode):
             "sync": (SYNC_NOT_USED, "PTP status not monitored yet"),
             "stream": (INACTIVE, ""),
         }
+
+    # connectionStatus: whether our IS-05 patch reached the Dante device.
     if not apply_mode or ack is None:
-        return {
-            "link": (LINK_ALL_UP, ""),
-            "connection": (HEALTHY, "dry-run: no Dante commands sent"),
-            "sync": (SYNC_NOT_USED, "PTP status not monitored yet"),
-            "stream": (INACTIVE, "dry-run: no Dante commands sent"),
-        }
-    if ack:
-        return {
-            "link": (LINK_ALL_UP, ""),
-            "connection": (HEALTHY, "Dante device acknowledged all commands"),
-            "sync": (SYNC_NOT_USED, "PTP status not monitored yet"),
-            "stream": (HEALTHY, "assumed from command ACK (no RX polling yet)"),
-        }
+        connection = (HEALTHY, "dry-run: no Dante commands sent")
+    elif ack:
+        connection = (HEALTHY, "Dante device acknowledged all commands")
+    else:
+        connection = (UNHEALTHY, "Dante device did not acknowledge commands")
+
+    # streamStatus comes from the Dante RTP flow monitor (subscription status
+    # polled per RX channel), independent of dry-run/apply — a real "no audio"
+    # on the device must show red even before we send commands.
+    health = rx_state.get("stream_health", "unknown")
+    stream = {
+        "connected": (HEALTHY, "RTP flow receiving audio"),
+        "no_audio": (UNHEALTHY, "Dante RTP flow monitor reports no audio"),
+        "none": (INACTIVE, "no RTP flow on the Dante receiver"),
+        "unknown": (PARTIALLY_HEALTHY, "RTP flow status not yet polled"),
+    }.get(health, (PARTIALLY_HEALTHY, ""))
+
     return {
-        "link": (LINK_ALL_DOWN, "Dante device did not respond"),
-        "connection": (UNHEALTHY, "Dante device did not acknowledge commands"),
+        "link": (LINK_ALL_UP, ""),
+        "connection": connection,
         "sync": (SYNC_NOT_USED, "PTP status not monitored yet"),
-        "stream": (UNHEALTHY, "commands not acknowledged"),
+        "stream": stream,
     }
 
 
@@ -185,7 +191,7 @@ class Is12Server:
         self._thread = None
         self.sync_monitors(notify=False)
         engine.on_receivers_changed = lambda: self.sync_monitors(notify=True)
-        engine.receivers.on_status = self.receiver_status_changed
+        engine.receivers.add_status_listener(self.receiver_status_changed)
 
     # ------------------------------------------------------------ lifecycle
 

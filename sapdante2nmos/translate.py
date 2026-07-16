@@ -22,17 +22,23 @@ class ReceiverMap:
 
 
 def translate(rx: ReceiverMap, sdp: SdpParams, apply: bool = False):
-    """Baut (und sendet optional) die Dante-Kommandos fuer eine Verbindung."""
+    """Baut (und sendet optional) die Dante-Kommandos fuer eine Verbindung.
+
+    Pro Kanal wird der Quell-Stream-Kanal (i+1) auf den Ziel-Dante-RX-Kanal
+    (dante_base_channel + i) gemappt. Frueher blieb das Zielfeld auf Kanal 1
+    stehen -> nur Kanal 1 wurde geschaltet.
+    """
     packets = [("bind -> dante-ch %d" % rx.dante_base_channel,
                 dante.build_bind(rx.dante_base_channel, 0x20))]
     txid = 0x20
     for i in range(min(rx.channels, sdp.channels)):
         stream_ch = i + 1
+        dante_ch = rx.dante_base_channel + i
         txid += 5
         packets.append((
-            "map stream-ch %d -> dante-ch %d" % (stream_ch, rx.dante_base_channel + i),
+            "map stream-ch %d -> dante-ch %d" % (stream_ch, dante_ch),
             dante.build_map_channel(sdp.source_ip, sdp.multicast_ip, sdp.port,
-                                    stream_ch, txid)))
+                                    stream_ch, dante_ch, txid)))
     out = []
     for label, pkt in packets:
         e = {"step": label, "hex": pkt.hex()}

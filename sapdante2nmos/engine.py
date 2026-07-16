@@ -73,6 +73,7 @@ class Engine:
         self._device = None
         self._rx_device = None
         self.receivers = ReceiverManager(config, self._log)
+        self.receivers.add_status_listener(self._on_receiver_status)
         self._receivers_synced = False
         self.on_receivers_changed = None  # set by the IS-12 server
         self._sources = {}
@@ -440,6 +441,13 @@ class Engine:
         self._receivers_synced = ok
         return ok
 
+    def _on_receiver_status(self, nmos_id):
+        """A receiver's connection changed — update its IS-04 subscription
+        (sender_id / active) in the registry so controllers see the link."""
+        rx = self.receivers.get(nmos_id)
+        if rx and self._node_registered and self._registrar():
+            self._post("receiver", self._build_receiver(rx))
+
     def add_receiver(self, label, dante_device_ip, dante_base_channel, channels=2):
         rx = self.receivers.add(label, dante_device_ip, dante_base_channel, channels)
         if self._node_registered:
@@ -730,14 +738,18 @@ class Engine:
                         "enum": [{"numerator": 48000, "denominator": 1}]},
                 }],
             },
-            "subscription": {"sender_id": None, "active": False},
+            "subscription": self.receivers.subscription(rx.nmos_id),
             "interface_bindings": ["eth0"],
         }
 
     def _device_scan_loop(self):
-        interval = max(10, int(self.config["device_scan_interval"]))
+        idle = max(10, int(self.config["device_scan_interval"]))
+        active = min(idle, 10)  # poll faster while a receiver is patched
         while self.running:
             self.receivers.refresh_devices()
+            any_active = any(s["summary"]["active"]
+                             for s in self.receivers.state.values())
+            interval = active if (any_active and self.config["apply_mode"]) else idle
             for _ in range(interval * 2):
                 if not self.running:
                     return

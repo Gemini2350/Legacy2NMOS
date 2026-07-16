@@ -1,18 +1,25 @@
 """Dante-Steuerprotokoll: Kommando-Builder (Reverse Engineering aus pcap-Captures).
 
-Quelle: Dante.pcapng / dante2.pcapng. Protokoll 0x2809 (AES67), Port 4440 (ARC).
-Ansatz: Template-and-Patch -- unverstandene Bytes bleiben wie im Original.
+Quelle: Dante.pcapng / dante2.pcapng / Dante3.pcapng. Protokoll 0x2809 (AES67),
+Port 4440 (ARC). Ansatz: Template-and-Patch -- unverstandene Bytes bleiben wie im
+Original.
 
-Bekannte Felder:
-  0x3201 (112 B) "Quellkanal in Flow mappen"
-     @4:6   Transaction-ID
-     @68:72 Source-IP (Sender, unicast)          [bestaetigt]
-     @102   Quellkanal im Stream (1 Byte)         [bestaetigt: 1..6 beobachtet]
+Feldkarte 0x3201 (112 B) "Quellkanal -> Ziel-Dante-Kanal mappen":
+     @4:6    Transaction-ID
+     @52:54  Begleitfeld des Ziel-Dante-Kanals   [bestaetigt fuer ch1/ch2, s.u.]
+     @68:72  Source-IP (Sender, unicast)          [bestaetigt]
+     @96:98  Ziel-Dante-RX-Kanal                  [BESTAETIGT via Dante3.pcapng]
+     @102    Quell-Stream-Kanal (1 Byte)          [bestaetigt: 1..6 beobachtet]
      @106:108 RTP-Port                            [bestaetigt]
      @108:112 Multicast-Adresse                   [bestaetigt]
-  0x3410 (28 B) "Flow-Bindung"
-     @4:6   Transaction-ID
-     @20:22 Ziel-Dante-RX-Kanal                   [HYPOTHESE -- gegen Testgeraet pruefen]
+
+Das @52:54-Begleitfeld korreliert mit dem Ziel-Kanal:
+     Dante-ch 1 -> 0x0002,  Dante-ch 2 -> 0x0008   (byte-genau aus Captures).
+Fuer Kanaele >2 ist der Wert extrapoliert (1 << (2*ch-1)) und UNVERIFIZIERT.
+
+0x3410 (28 B) "Flow-Bindung": @20:22 Ziel-Dante-RX-Kanal [HYPOTHESE]. In
+Dante3.pcapng tauchte 0x3410 nicht auf (nur 0x3400-Queries), die Rolle des Bind
+ist damit weiter offen; wir senden ihn wie in der funktionierenden ch1-Sequenz.
 """
 from __future__ import annotations
 
@@ -30,7 +37,18 @@ TPL_3410 = bytes.fromhex("2809001c0020341000000000000000000800010100010003000000
 assert len(TPL_3201) == 112 and len(TPL_3410) == 28
 
 O_TXID, O_SRC, O_STREAMCH, O_PORT, O_MCAST = 4, 68, 102, 106, 108
-O_TXID2, O_DANTECH = 4, 20  # O_DANTECH: HYPOTHESE
+O_DESTENC, O_DESTCH = 52, 96          # 16-bit dest-channel fields in 0x3201
+O_TXID2, O_DANTECH = 4, 20            # 0x3410 (O_DANTECH: HYPOTHESE)
+
+# @52:54 companion value per destination Dante RX channel. Channels 1 and 2 are
+# byte-exact from captures; higher channels are extrapolated and unverified.
+_DEST_ENC = {1: 0x0002, 2: 0x0008}
+
+
+def dest_channel_enc(dante_channel: int) -> int:
+    if dante_channel in _DEST_ENC:
+        return _DEST_ENC[dante_channel]
+    return 1 << (2 * dante_channel - 1)  # UNVERIFIED for ch > 2
 
 
 def build_bind(dante_channel: int, txid: int = 0x20) -> bytes:
@@ -42,14 +60,19 @@ def build_bind(dante_channel: int, txid: int = 0x20) -> bytes:
 
 
 def build_map_channel(source_ip: str, multicast_ip: str, rtp_port: int,
-                      stream_channel: int, txid: int = 0x20) -> bytes:
-    """0x3201: mappt einen Quell-Stream-Kanal in den Flow."""
+                      stream_channel: int, dante_channel: int = 1,
+                      txid: int = 0x20) -> bytes:
+    """0x3201: mappt einen Quell-Stream-Kanal auf einen Ziel-Dante-RX-Kanal."""
     p = bytearray(TPL_3201)
     p[O_TXID:O_TXID + 2] = txid.to_bytes(2, "big")
     p[O_SRC:O_SRC + 4] = socket.inet_aton(source_ip)
     if not 0 <= stream_channel <= 0xFF:
         raise ValueError("stream_channel muss 0..255 sein")
+    if not 1 <= dante_channel <= 0xFFFF:
+        raise ValueError("dante_channel muss 1..65535 sein")
     p[O_STREAMCH] = stream_channel
+    p[O_DESTCH:O_DESTCH + 2] = dante_channel.to_bytes(2, "big")
+    p[O_DESTENC:O_DESTENC + 2] = dest_channel_enc(dante_channel).to_bytes(2, "big")
     p[O_PORT:O_PORT + 2] = rtp_port.to_bytes(2, "big")
     p[O_MCAST:O_MCAST + 4] = socket.inet_aton(multicast_ip)
     return bytes(p)

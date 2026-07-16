@@ -33,15 +33,29 @@ Protokoll `0x2809` (AES67), Port 4440/UDP (ARC). Framing:
 Belegt durch Captures Dante.pcapng (2 Kanäle) und dante2.pcapng (Kanäle 1–6);
 vollständige Analyse in `docs/dante-protocol-reverse-engineering.md`.
 
+## Status Reverse Engineering / BCP-008 (Stand 2026-07-16)
+
+- **Ziel-Kanal 0x3201 bestätigt** (Dante3.pcapng): `@96:98` = Ziel-Dante-RX-Kanal,
+  `@52:54` = Begleitwert (ch1→0x0002, ch2→0x0008), `@102` = QUELL-Stream-Kanal.
+  `build_map_channel` patcht alle drei; byte-genauer Test gegen den Capture. Für
+  Ziel-Kanäle >2 ist `@52:54` extrapoliert (`1<<(2*ch-1)`) und UNVERIFIZIERT — bei
+  4-/8-Kanal-Empfängern Capture nachliefern.
+- **BCP-008 streamStatus** kommt aus dem Dante-RTP-Flow-Monitor (Subscription-
+  Status-Code je RX-Kanal, via netaudio gepollt). Kalibriert an echten Geräten:
+  **10 = Audio (grün), 14 = kein Audio (rot), 0 = keine Subscription**. Läuft auch
+  im DRY-RUN (echter Gerätestatus). connectionStatus kommt weiter aus den ACKs.
+- **sender_id-Feedback**: Bei IS-05-Aktivierung wird `subscription.sender_id/active`
+  gesetzt und der Receiver re-registriert (Controller sieht den verbundenen Sender).
+
 ## OFFENE PUNKTE
 
-1. **`0x3410`-Zielfeld bestätigen** — Capture nötig, die denselben Quellkanal auf
-   einen ANDEREN Dante-RX-Kanal routet (Erwartung: `@20:22` springt mit).
+1. **`0x3410`-Bind**: In Dante3.pcapng nicht enthalten (nur 0x3400-Queries). Rolle
+   weiter offen; wir senden ihn wie in der funktionierenden ch1-Sequenz. `@20:22`
+   (Zielkanal) bleibt Hypothese.
 2. **Live-Test mit ARMED** nur gegen ein TESTGERÄT (AES67 an, 48 kHz, PTP gelockt).
-3. **BCP-008 vertiefen** — PTP-Lock + RX-Subscription-Status über den
-   netaudio-Lesepfad pollen; aktuell speisen nur die Kommando-ACKs die Monitore
-   (Sync-Domain steht auf NotUsed).
-4. Unklare Felder: `0x3201 @16` (`4202`) und `@76` (`0x1E240`) — bleiben Template.
+3. **Sync-Domain (PTP)** noch NotUsed — PTP-Lock über netaudio ergänzen.
+4. **`@52:54` für Ziel-Kanäle >2** verifizieren (Capture mit 4/8 Kanälen).
+5. Unklare Felder: `0x3201 @16` (`4202`) und `@76` (`0x1E240`) — bleiben Template.
 
 ## Sicherheit / Betrieb
 

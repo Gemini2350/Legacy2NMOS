@@ -14,6 +14,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+from dataclasses import field
+
+
+# Observed Dante subscription status codes (calibrated against real devices):
+#   10 (0x0A) = connected, audio flowing        -> healthy
+#   14 (0x0E) = subscribed but no audio / no Tx -> unhealthy (RTP flow: "no audio")
+#    0        = not subscribed                  -> inactive
+CONNECTED_STATUS_CODES = {9, 10}
+
+
 @dataclass
 class DanteDevice:
     name: str
@@ -23,6 +33,8 @@ class DanteDevice:
     tx_channels: int = 0
     sample_rate: int = 0
     model: str = ""
+    # rx channel number -> subscription status_code (RTP flow monitor)
+    rx_status: dict = field(default_factory=dict)
 
 
 def _int(value):
@@ -66,6 +78,37 @@ def discover_aes67_devices():
             tx_channels=_int(getattr(dev, "tx_count", 0)),
             sample_rate=_int(getattr(dev, "sample_rate", 0)),
             model=_model(dev),
+            rx_status=_rx_status(dev),
         ))
     out.sort(key=lambda d: (not d.aes67_enabled, d.name.lower()))
     return out
+
+
+def _rx_status(dev):
+    """Map rx channel number -> subscription status_code (RTP flow monitor)."""
+    status = {}
+    for sub in getattr(dev, "subscriptions", None) or []:
+        name = getattr(sub, "rx_channel_name", None)
+        code = getattr(sub, "status_code", None)
+        if name is None or code is None:
+            continue
+        try:
+            ch = int(str(name).lstrip("0") or "0")
+        except ValueError:
+            continue
+        if ch:
+            status[ch] = int(code)
+    return status
+
+
+def stream_health(status_code):
+    """Classify a Dante subscription status_code for BCP-008 stream status.
+
+    Returns 'connected' (audio flowing), 'no_audio' (subscribed, RTP flow
+    reports no audio) or 'none' (not subscribed).
+    """
+    if not status_code:
+        return "none"
+    if status_code in CONNECTED_STATUS_CODES:
+        return "connected"
+    return "no_audio"

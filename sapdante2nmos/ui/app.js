@@ -135,6 +135,22 @@ function renderReceivers(receivers) {
       : `${r.dante_base_channel}`;
 
     let patch = r.active ? badge("reg", "active") : badge("pending", "idle");
+
+    let flow = "";
+    if (r.active) {
+      const fmap = {
+        connected: ["reg", "audio"],
+        no_audio: ["stale", "NO AUDIO"],
+        none: ["stale", "no flow"],
+        unknown: ["pending", "polling…"],
+      };
+      const [cls, label] = fmap[r.stream_health] || fmap.unknown;
+      flow = badge(cls, label);
+    }
+
+    const sender = r.sender_id
+      ? `<div class="sub mono" title="connected sender">← ${esc(r.sender_id)}</div>` : "";
+
     let lastCmd = "";
     if (r.last_result && r.last_result.length) {
       if (r.last_ack === true) lastCmd = badge("reg", "ACK ok");
@@ -148,7 +164,8 @@ function renderReceivers(receivers) {
       <td class="mono">${esc(r.dante_device_ip)}</td>
       <td class="mono">${chRange} (${r.channels}ch)</td>
       <td>${patch}</td>
-      <td class="mono">${esc(r.source)}</td>
+      <td>${flow}</td>
+      <td class="mono">${esc(r.source)}${sender}</td>
       <td>${lastCmd}</td>
       <td>
         <button class="icon" data-rxdel="${r.nmos_id}" title="Remove receiver">&#10005;</button>
