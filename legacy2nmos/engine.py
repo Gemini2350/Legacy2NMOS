@@ -106,7 +106,8 @@ class Engine:
         self._threads = [t1, t2]
         t1.start()
         t2.start()
-        if self.receivers.scan_available():
+        # Scan runs for mDNS discovery (netaudio) and/or manual cross-subnet devices.
+        if self.receivers.scan_available() or self.config["manual_devices"]:
             t3 = threading.Thread(target=self._device_scan_loop, daemon=True,
                                   name="dantescan")
             self._threads.append(t3)
@@ -442,6 +443,22 @@ class Engine:
         self._receivers_synced = ok
         return ok
 
+    def add_manual_device(self, ip):
+        import socket as _s
+        try:
+            _s.inet_aton(ip)
+        except OSError:
+            return False, "invalid IP address"
+        dev = self.receivers.add_manual_device(ip)
+        threading.Thread(target=self.receivers.refresh_devices, daemon=True).start()
+        if not dev.reachable:
+            return True, ("added, but the device did not answer on UDP 4440 — "
+                          "check routing to its subnet")
+        return True, f"added — AES67 range 239.{dev.mcast_prefix}.x.x"
+
+    def remove_manual_device(self, ip):
+        return self.receivers.remove_manual_device(ip)
+
     def set_device_prefix(self, ip, prefix):
         """Write a device's AES67 multicast prefix (guarded by ARMED)."""
         if not 0 <= prefix <= 255:
@@ -735,11 +752,11 @@ class Engine:
         return {
             "id": self.config["node_id"],
             "version": now_ts(),
-            "label": "SAPDante2NMOS",
+            "label": "Legacy2NMOS",
             "description": "SAP-to-NMOS senders + NMOS-to-Dante receivers",
             "tags": {},
             "href": f"http://{ip}:{port}/x-nmos/node/v1.3/",
-            "hostname": socket.gethostname().split(".")[0] or "sapdante2nmos",
+            "hostname": socket.gethostname().split(".")[0] or "legacy2nmos",
             "api": {
                 "versions": ["v1.3"],
                 "endpoints": [{"host": ip, "port": port, "protocol": "http"}],

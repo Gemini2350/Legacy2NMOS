@@ -4,6 +4,17 @@ const $ = (id) => document.getElementById(id);
 
 let running = true;
 
+// ---------------------------------------------------------------- tabs
+
+document.querySelectorAll("#tabs .tab").forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll("#tabs .tab").forEach((b) =>
+      b.classList.toggle("active", b === btn));
+    document.querySelectorAll(".pane").forEach((p) =>
+      (p.hidden = p.id !== "pane-" + btn.dataset.tab));
+  };
+});
+
 // ---------------------------------------------------------------- polling
 
 async function refresh() {
@@ -37,9 +48,14 @@ async function refresh() {
     dante.apply_mode ? "ARMED" : "DRY-RUN");
 
   $("devices-updated").textContent = dante.devices_updated
-    ? "last device scan: " + ago(dante.devices_updated) : "";
+    ? "last scan: " + ago(dante.devices_updated) : "";
 
-  renderDeviceCentric(state.streams, dante);
+  $("count-sap").textContent = state.streams.length || "";
+  $("count-dante").textContent = (dante.devices || []).length || "";
+
+  window._lastStreams = state.streams;
+  renderSap(state.streams);
+  renderDante(dante);
   $("log").textContent = state.log.slice().reverse().join("\n");
 }
 
@@ -48,45 +64,51 @@ function setChip(el, cls, text) {
   el.textContent = text;
 }
 
-// ---------------------------------------------------------------- device-centric view
+// ---------------------------------------------------------------- SAP Discovery tab
 
-let lastSig = "";
+let lastSapSig = "";
 
-function renderDeviceCentric(streams, dante) {
-  const devices = dante.devices || [];
-  const receivers = dante.receivers || [];
-
-  // Rebuild only when structure/status changes (not on every "last seen" tick),
-  // otherwise a rebuild mid-click would swallow the interaction.
-  const sig = JSON.stringify([
-    devices, receivers,
-    streams.map((s) => [s.hash, s.name, s.mcast, s.port, s.format, s.src_ip,
-      s.origin, s.registered, s.external, s.stale]),
-  ]);
-  if (sig !== lastSig) {
-    lastSig = sig;
-    buildDeviceCentric(streams, devices, receivers);
+function renderSap(streams) {
+  $("empty-sap").hidden = streams.length > 0;
+  const sig = JSON.stringify(streams.map((s) => [s.hash, s.name, s.mcast, s.port,
+    s.format, s.src_ip, s.origin, s.registered, s.external, s.stale]));
+  const body = $("sap-rows");
+  if (sig !== lastSapSig) {
+    lastSapSig = sig;
+    body.innerHTML = streams.map((s) => senderRow(s, true)).join("");
   }
-  // Live-update the "last seen" cells in place.
-  document.querySelectorAll("td[data-ts]").forEach((td) => {
+  body.querySelectorAll("td[data-ts]").forEach((td) => {
     td.textContent = ago(parseFloat(td.dataset.ts));
   });
 }
 
-function buildDeviceCentric(streams, devices, receivers) {
-  window._lastDevices = devices;
-  const list = $("device-list");
-  list.innerHTML = "";
+// ---------------------------------------------------------------- Dante tab (device-centric)
 
-  // Index senders by source IP and receivers by device IP.
+let lastDanteSig = "";
+
+function renderDante(dante) {
+  const devices = dante.devices || [];
+  const receivers = dante.receivers || [];
+  window._lastDevices = devices;
+  $("empty-dante").hidden = devices.length > 0;
+
+  const sig = JSON.stringify([devices, receivers,
+    (window._lastStreams || []).map((s) => [s.hash, s.src_ip, s.registered,
+      s.external, s.stale])]);
+  if (sig === lastDanteSig) {
+    $("device-list").querySelectorAll("td[data-ts]").forEach((td) => {
+      td.textContent = ago(parseFloat(td.dataset.ts));
+    });
+    return;
+  }
+  lastDanteSig = sig;
+
+  const streams = window._lastStreams || [];
   const sendersByIp = {};
   for (const s of streams) (sendersByIp[s.src_ip] ||= []).push(s);
   const rxByIp = {};
   for (const r of receivers) (rxByIp[r.dante_device_ip] ||= []).push(r);
 
-  const deviceIps = new Set(devices.map((d) => d.ip));
-
-  // datalist for the add-receiver IP field
   const dl = $("device-ips");
   dl.innerHTML = "";
   for (const d of devices) {
@@ -94,25 +116,11 @@ function buildDeviceCentric(streams, devices, receivers) {
     o.value = d.ip; o.label = d.name; dl.appendChild(o);
   }
 
+  const list = $("device-list");
+  list.innerHTML = "";
   for (const d of devices) {
     list.appendChild(deviceCard(d, sendersByIp[d.ip] || [], rxByIp[d.ip] || []));
   }
-
-  // Senders whose source is not a discovered Dante device, plus receivers
-  // pointing at an unknown IP.
-  const other = streams.filter((s) => !deviceIps.has(s.src_ip));
-  const otherRx = receivers.filter((r) => !deviceIps.has(r.dante_device_ip));
-  $("other-section").hidden = other.length === 0 && otherRx.length === 0;
-  const otbody = $("other-rows");
-  otbody.innerHTML = "";
-  for (const s of other) otbody.insertAdjacentHTML("beforeend", senderRow(s, true));
-  for (const r of otherRx) {
-    otbody.insertAdjacentHTML("beforeend",
-      `<tr><td colspan="9" class="sub">RX ${esc(r.label)} → unknown device
-       ${esc(r.dante_device_ip)} ${receiverInline(r)}</td></tr>`);
-  }
-
-  $("empty-all").hidden = devices.length > 0 || streams.length > 0;
 }
 
 function deviceCard(d, senders, receivers) {
@@ -141,6 +149,7 @@ function deviceCard(d, senders, receivers) {
       <div class="device-title">
         <span class="device-name">${esc(d.name) || "&lt;unnamed&gt;"}</span>
         <span class="mono device-ip">${esc(d.ip)}</span>
+        ${d.manual ? badge("manual", "manual") : ""}
         ${d.aes67_enabled ? badge("reg", "AES67") : badge("stale", "no AES67")}
         <span class="device-meta">${prefix}</span>
         <span class="device-meta note">${esc(d.model)} · ${rate}
@@ -151,6 +160,8 @@ function deviceCard(d, senders, receivers) {
           title="Create a multicast TX flow (NMOS sender) on this device">+ Create TX</button>
         <button class="icon" data-mkrx="${esc(d.ip)}" data-mkname="${esc(d.name)}"
           title="Add an NMOS receiver on this device">+ Add RX</button>
+        ${d.manual ? `<button class="icon" data-devdel="${esc(d.ip)}"
+          title="Remove this manually added device">&#10005;</button>` : ""}
       </div>
     </div>
     <div class="device-body">
@@ -300,7 +311,7 @@ function openAddReceiver(prefillIp, prefillName) {
   openModal("modal-add-rx");
 }
 
-$("btn-add-rx").onclick = () => openAddReceiver();
+// receiver add is triggered from device cards (+ Add RX)
 
 $("btn-add-rx-confirm").onclick = async () => {
   const body = {
@@ -493,6 +504,10 @@ async function handleAction(e) {
     openAddReceiver(d.mkrx, d.mkname);
   } else if (d.createtx) {
     openCreateTx(d.createtx, d.txname);
+  } else if (d.devdel) {
+    if (!confirm(`Remove manually added device ${d.devdel}?`)) return;
+    await fetch("/api/devices/manual/" + d.devdel, { method: "DELETE" });
+    refresh();
   } else if (d.autopfx) {
     await fetch("/api/devices/auto_prefix", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -520,10 +535,30 @@ async function handleAction(e) {
 }
 
 $("device-list").addEventListener("click", handleAction);
-$("other-rows").addEventListener("click", handleAction);
+$("sap-rows").addEventListener("click", handleAction);
 
 $("btn-refresh-devices").onclick = async () => {
   await fetch("/api/devices/refresh", { method: "POST" });
+};
+
+$("btn-add-device").onclick = () => {
+  $("dev-ip").value = "";
+  $("dev-error").textContent = "";
+  openModal("modal-device");
+};
+
+$("btn-device-confirm").onclick = async () => {
+  const ip = $("dev-ip").value.trim();
+  if (!ip) { $("dev-error").textContent = "Enter a device IP."; return; }
+  const r = await fetch("/api/devices/manual", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ip }),
+  });
+  const res = await r.json();
+  if (!r.ok) { $("dev-error").textContent = res.message || "Failed to add device."; return; }
+  closeModals();
+  refresh();
 };
 
 $("btn-copy-sdp").onclick = () => {

@@ -203,15 +203,47 @@ class ReceiverManager:
 
     def refresh_devices(self):
         try:
-            from .dante_devices import discover_aes67_devices
+            from .dante_devices import discover_aes67_devices, query_manual_device
             devices = discover_aes67_devices()
         except Exception as e:
             self.log(f"Dante device scan failed: {e}")
             return
+        # Add manually configured devices (cross-subnet) not found via mDNS.
+        found = {d.ip for d in devices}
+        for ip in self.config["manual_devices"]:
+            if ip not in found:
+                try:
+                    devices.append(query_manual_device(ip))
+                except Exception as e:  # noqa: BLE001
+                    self.log(f"Manual device {ip} query failed: {e}")
         with self.lock:
             self.devices = devices
             self.devices_updated = time.time()
         self._update_stream_health()
+
+    def add_manual_device(self, ip):
+        from .dante_devices import query_manual_device
+        dev = query_manual_device(ip)
+        with self.lock:
+            if ip not in self.config["manual_devices"]:
+                self.config["manual_devices"].append(ip)
+                self.config.save()
+            # show it immediately (unless already discovered via mDNS)
+            if not any(d.ip == ip for d in self.devices):
+                self.devices.append(dev)
+        self.log(f"Manual device added: {ip}"
+                 + ("" if dev.reachable else " (no response yet)"))
+        return dev
+
+    def remove_manual_device(self, ip):
+        with self.lock:
+            if ip in self.config["manual_devices"]:
+                self.config["manual_devices"].remove(ip)
+                self.config.save()
+                self.devices = [d for d in self.devices if not (d.manual and d.ip == ip)]
+                self.log(f"Manual device removed: {ip}")
+                return True
+        return False
 
     def _update_stream_health(self):
         """Recompute each active receiver's RTP flow health from the scan and

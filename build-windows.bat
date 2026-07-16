@@ -1,8 +1,8 @@
 @echo off
-rem Build SAPDante2NMOS.exe for Windows. Requires: pip install pyinstaller
+rem Build Legacy2NMOS.exe for Windows. Requires: pip install pyinstaller
 cd /d "%~dp0"
 pyinstaller --noconfirm --clean --windowed ^
-  --name "SAPDante2NMOS" ^
-  --add-data "sapdante2nmos/ui;sapdante2nmos/ui" ^
+  --name "Legacy2NMOS" ^
+  --add-data "legacy2nmos/ui;legacy2nmos/ui" ^
   app.py
-echo Done: dist\SAPDante2NMOS\SAPDante2NMOS.exe
+echo Done: dist\Legacy2NMOS\Legacy2NMOS.exe

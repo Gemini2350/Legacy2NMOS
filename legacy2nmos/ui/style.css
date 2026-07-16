@@ -66,15 +66,33 @@ button.secondary { background: transparent; }
 button.icon { padding: 4px 8px; font-size: 0.8rem; }
 button.icon.on { background: var(--ok); border-color: var(--ok); color: #06210f; }
 
-#toolbar {
+#tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 18px 0;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-dim);
+  padding: 8px 14px;
+  font-size: 0.9rem;
+}
+.tab:hover { color: var(--text); border-color: transparent; }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+
+.pane-toolbar {
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 10px;
-  padding: 8px 18px;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
 }
+.pane-toolbar .note { margin-right: auto; }
 .count {
   background: var(--bg-row);
   border-radius: 10px;

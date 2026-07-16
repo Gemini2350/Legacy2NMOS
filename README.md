@@ -1,7 +1,7 @@
-# SAPDante2NMOS
+# Legacy2NMOS
 
-[![Docker](https://github.com/Gemini2350/SAPDante2NMOS/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Gemini2350/SAPDante2NMOS/actions/workflows/docker-publish.yml)
-[![Docker Hub](https://img.shields.io/docker/v/gemini2350/sapdante2nmos?label=docker%20hub)](https://hub.docker.com/r/gemini2350/sapdante2nmos)
+[![Docker](https://github.com/Gemini2350/Legacy2NMOS/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Gemini2350/Legacy2NMOS/actions/workflows/docker-publish.yml)
+[![Docker Hub](https://img.shields.io/docker/v/gemini2350/legacy2nmos?label=docker%20hub)](https://hub.docker.com/r/gemini2350/legacy2nmos)
 
 Bidirectional Dante/AES67 ↔ NMOS gateway with a GUI (desktop app for Windows/macOS or
 Docker container):
@@ -16,17 +16,17 @@ Docker container):
 ## Quick start (Docker, Linux host)
 
 ```sh
-docker run -d --name sapdante2nmos \
+docker run -d --name legacy2nmos \
   --network host --restart always \
-  -v sapdante2nmos-config:/config \
-  gemini2350/sapdante2nmos:latest
+  -v legacy2nmos-config:/config \
+  gemini2350/legacy2nmos:latest
 ```
 
 Open the UI at `http://<host>:8085/ui/` — the NMOS registry is found automatically via
 unicast DNS-SD; discovered SAP streams appear in the table and get registered. To update:
 
 ```sh
-docker pull gemini2350/sapdante2nmos:latest && docker rm -f sapdante2nmos
+docker pull gemini2350/legacy2nmos:latest && docker rm -f legacy2nmos
 # then re-run the docker run command above
 ```
 
@@ -88,14 +88,14 @@ Options:
 ```
 
 The registrar can also be set in the GUI under **Settings**. Configuration is stored in
-`~/Library/Application Support/SAPDante2NMOS/` (macOS) or `%APPDATA%\SAPDante2NMOS\` (Windows).
+`~/Library/Application Support/Legacy2NMOS/` (macOS) or `%APPDATA%\Legacy2NMOS\` (Windows).
 
 ## Build a standalone app
 
 ```sh
 pip install pyinstaller
-./build-macos.sh        # -> dist/SAPDante2NMOS.app
-build-windows.bat       # -> dist\SAPDante2NMOS\SAPDante2NMOS.exe  (run on Windows)
+./build-macos.sh        # -> dist/Legacy2NMOS.app
+build-windows.bat       # -> dist\Legacy2NMOS\Legacy2NMOS.exe  (run on Windows)
 ```
 
 ## Linux (Ubuntu)
@@ -113,7 +113,7 @@ For a native window install the WebKit2GTK bindings first
 
 ## Docker
 
-CI publishes `gemini2350/sapdante2nmos` (amd64 + arm64) to Docker Hub on every push to main:
+CI publishes `gemini2350/legacy2nmos` (amd64 + arm64) to Docker Hub on every push to main:
 
 ```sh
 docker compose pull && docker compose up -d    # use the CI image
@@ -125,7 +125,7 @@ The container runs headless; the web UI works from any browser. **Host networkin
 required** (already set in `docker-compose.yml`): the SAP listener needs the host's
 multicast traffic and the announced manifest URLs must carry a reachable IP. This only
 works on Linux hosts — Docker Desktop on macOS/Windows isolates the host network.
-Configuration (node IDs, manual SDPs, settings) persists in the `sapdante2nmos-config` volume.
+Configuration (node IDs, manual SDPs, settings) persists in the `legacy2nmos-config` volume.
 
 ## Legacy CLI
 

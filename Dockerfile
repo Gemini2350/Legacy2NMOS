@@ -6,7 +6,7 @@ COPY requirements-docker.txt .
 RUN pip install --no-cache-dir -r requirements-docker.txt
 
 COPY app.py .
-COPY sapdante2nmos/ sapdante2nmos/
+COPY legacy2nmos/ legacy2nmos/
 
 # config.py resolves the Linux config dir from XDG_CONFIG_HOME
 ENV XDG_CONFIG_HOME=/config

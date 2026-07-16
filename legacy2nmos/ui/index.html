@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SAPDante2NMOS</title>
+<title>Legacy2NMOS</title>
 <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
 <header>
   <div class="brand">
-    <h1>SAPDante2NMOS</h1>
-    <span class="subtitle">SAP &rarr; NMOS senders &middot; NMOS &rarr; Dante receivers</span>
+    <h1>Legacy2NMOS</h1>
+    <span class="subtitle">Legacy audio sources &rarr; NMOS</span>
   </div>
   <div class="header-status">
     <span id="registry-chip" class="chip">registry</span>
@@ -18,24 +18,24 @@
     <span id="apply-chip" class="chip warn" title="Whether real Dante commands are sent">DRY-RUN</span>
   </div>
   <div class="header-actions">
-    <button id="btn-add" class="primary">+ Add SDP</button>
-    <button id="btn-add-rx" class="primary">+ Add Receiver</button>
     <button id="btn-settings">Settings</button>
     <button id="btn-toggle">Stop</button>
   </div>
 </header>
 
-<div id="toolbar">
-  <span id="devices-updated" class="note"></span>
-  <button id="btn-refresh-devices" class="icon">Rescan devices</button>
-</div>
+<nav id="tabs">
+  <button class="tab active" data-tab="sap">SAP Discovery <span id="count-sap" class="count"></span></button>
+  <button class="tab" data-tab="dante">Dante <span id="count-dante" class="count"></span></button>
+  <button class="tab" data-tab="lawo">Lawo</button>
+  <button class="tab" data-tab="cymatic">Cymatic / Archwave</button>
+</nav>
 
 <main>
-  <div id="device-list"></div>
-
-  <section id="other-section" hidden>
-    <div class="group-title">Other senders
-      <span class="note">(SAP / manual streams not from a discovered Dante device)</span>
+  <!-- SAP Discovery -->
+  <section id="pane-sap" class="pane">
+    <div class="pane-toolbar">
+      <span class="note">SAP/SDP announcements registered as NMOS senders</span>
+      <button id="btn-add" class="primary">+ Add SDP</button>
     </div>
     <table>
       <thead>
@@ -44,16 +44,38 @@
           <th>Source IP</th><th>Origin</th><th>Status</th><th>Last seen</th><th></th>
         </tr>
       </thead>
-      <tbody id="other-rows"></tbody>
+      <tbody id="sap-rows"></tbody>
     </table>
+    <div id="empty-sap" class="empty" hidden>
+      No streams discovered yet. Listening for SAP announcements&hellip;<br>
+      <small>You can also add a stream manually with <b>+ Add SDP</b>.</small>
+    </div>
   </section>
 
-  <div id="empty-all" class="empty" hidden>
-    No Dante devices and no streams yet.<br>
-    <small>Listening for SAP announcements. Device discovery needs the
-    <code>netaudio</code> package and mDNS access to the Dante network.
-    You can add a stream with <b>+ Add SDP</b> or a receiver with <b>+ Add Receiver</b>.</small>
-  </div>
+  <!-- Dante -->
+  <section id="pane-dante" class="pane" hidden>
+    <div class="pane-toolbar">
+      <span id="devices-updated" class="note"></span>
+      <button id="btn-add-device">+ Add device</button>
+      <button id="btn-refresh-devices" class="icon">Rescan</button>
+    </div>
+    <div id="device-list"></div>
+    <div id="empty-dante" class="empty" hidden>
+      No Dante devices found.<br>
+      <small>Discovery needs the <code>netaudio</code> package and mDNS access.
+      Devices in another subnet can be added manually with <b>+ Add device</b>.</small>
+    </div>
+  </section>
+
+  <!-- Lawo (placeholder) -->
+  <section id="pane-lawo" class="pane" hidden>
+    <div class="empty">Lawo integration &mdash; coming later.</div>
+  </section>
+
+  <!-- Cymatic / Archwave (placeholder) -->
+  <section id="pane-cymatic" class="pane" hidden>
+    <div class="empty">Cymatic / Archwave integration &mdash; coming later.</div>
+  </section>
 </main>
 
 <section id="log-panel">
@@ -105,6 +127,25 @@
     <div class="modal-actions">
       <button class="secondary" data-close>Cancel</button>
       <button class="primary" id="btn-add-rx-confirm">Add receiver</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Dante device modal -->
+<div class="modal-backdrop" id="modal-device" hidden>
+  <div class="modal">
+    <h2>Add Dante device manually</h2>
+    <p class="hint">For devices that discovery does not find (e.g. in another
+    subnet). Legacy2NMOS queries the device directly by IP over the Dante control
+    protocol (UDP 4440) — this must be routed to the device. Receivers and TX flows
+    then work as usual.</p>
+    <label>Device IP address
+      <input type="text" id="dev-ip" placeholder="10.20.30.40">
+    </label>
+    <div class="error" id="dev-error"></div>
+    <div class="modal-actions">
+      <button class="secondary" data-close>Cancel</button>
+      <button class="primary" id="btn-device-confirm">Add device</button>
     </div>
   </div>
 </div>

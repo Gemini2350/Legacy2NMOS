@@ -11,7 +11,7 @@ from .engine import list_interfaces
 def ui_dir():
     base = getattr(sys, "_MEIPASS", None)
     if base:
-        return os.path.join(base, "sapdante2nmos", "ui")
+        return os.path.join(base, "legacy2nmos", "ui")
     return os.path.join(os.path.dirname(__file__), "ui")
 
 
@@ -135,6 +135,11 @@ def make_server(engine, config):
                     threading.Thread(target=engine.receivers.refresh_devices,
                                      daemon=True).start()
                     return self.send_json({"ok": True})
+                if path == "/api/devices/manual":
+                    body = json.loads(self.read_body() or b"{}")
+                    ok, msg = engine.add_manual_device((body.get("ip") or "").strip())
+                    return self.send_json({"ok": ok, "message": msg},
+                                          200 if ok else 400)
                 if path == "/api/devices/prefix":
                     body = json.loads(self.read_body() or b"{}")
                     ip = (body.get("ip") or "").strip()
@@ -167,6 +172,9 @@ def make_server(engine, config):
                 return self.send_json({"ok": ok}, 200 if ok else 404)
             if path.startswith("/api/receiver/"):
                 ok = engine.remove_receiver(path[len("/api/receiver/"):])
+                return self.send_json({"ok": ok}, 200 if ok else 404)
+            if path.startswith("/api/devices/manual/"):
+                ok = engine.remove_manual_device(path[len("/api/devices/manual/"):])
                 return self.send_json({"ok": ok}, 200 if ok else 404)
             return self.send_json({"error": "not found"}, 404)
 

@@ -23,6 +23,7 @@ DEFAULTS = {
     "device_scan_interval": 60,
     "auto_prefix_devices": [],   # device IPs that auto-follow the patched multicast
     "registry_recheck_interval": 300,  # re-check SAP streams vs registry (s)
+    "manual_devices": [],        # device IPs to query by unicast (cross-subnet)
 }
 
 
@@ -33,10 +34,10 @@ def config_dir():
         base = os.environ.get("APPDATA", os.path.expanduser("~"))
     else:
         base = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-    new = os.path.join(base, "SAPDante2NMOS")
+    new = os.path.join(base, "Legacy2NMOS")
     # One-time migration from the pre-rename config locations: the node and
     # device IDs must survive, otherwise the registry fills with orphans.
-    for old_name in ("Dante2NMOS", "SAP-2-NMOS"):
+    for old_name in ("SAPDante2NMOS", "Dante2NMOS", "SAP-2-NMOS"):
         old = os.path.join(base, old_name)
         if not os.path.isdir(new) and os.path.isdir(old):
             try:

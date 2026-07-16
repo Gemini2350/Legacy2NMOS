@@ -1,7 +1,7 @@
 """Offline-Tests: SDP-Parsing und Dante-Uebersetzung gegen Capture-Werte."""
-from sapdante2nmos import dante
-from sapdante2nmos.dante_sdp import parse_aes67_sdp
-from sapdante2nmos.translate import ReceiverMap, translate
+from legacy2nmos import dante
+from legacy2nmos.dante_sdp import parse_aes67_sdp
+from legacy2nmos.translate import ReceiverMap, translate
 
 SDP = (
     "v=0\r\no=- 123456 11 IN IP4 192.168.1.100\r\ns=Dante\r\n"

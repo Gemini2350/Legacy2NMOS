@@ -37,6 +37,8 @@ class DanteDevice:
     mcast_prefix: int = 0
     # rx channel number -> subscription status_code (RTP flow monitor)
     rx_status: dict = field(default_factory=dict)
+    manual: bool = False      # added by IP (cross-subnet), not via mDNS
+    reachable: bool = True    # answered the unicast control query
 
 
 def _int(value):
@@ -94,6 +96,20 @@ def _read_prefix(ip):
         return dante.read_aes67_prefix(ip, timeout=1.0) or 0
     except Exception:
         return 0
+
+
+def query_manual_device(ip):
+    """Query a device directly by IP (unicast, cross-subnet). Returns a
+    DanteDevice; reachable=False if it did not answer the control query."""
+    from . import dante
+    try:
+        prefix = dante.read_aes67_prefix(ip, timeout=1.5)
+    except OSError:
+        prefix = None
+    return DanteDevice(
+        name=ip, ip=ip, aes67_enabled=False,
+        mcast_prefix=prefix or 0, manual=True, reachable=prefix is not None,
+    )
 
 
 def _rx_status(dev):
