@@ -23,6 +23,7 @@ ist damit weiter offen; wir senden ihn wie in der funktionierenden ch1-Sequenz.
 """
 from __future__ import annotations
 
+import re
 import socket
 
 ARC_PORT = 4440
@@ -219,6 +220,87 @@ def create_tx_flow(device_ip: str, channels, multicast_ip: str,
     if _create_ok(resp, "2201"):
         return True, "classic"
     return False, None
+
+
+# -- delete / query a multicast TX flow (confirmed via delete_flow_neutrik.pcapng)
+# Flow management uses the classic proto 0x2801 for every device (even AES67
+# flows created via 0x2601): 0x2200 flow-summary, 0x2204 flow-SDP, 0x2202 delete.
+TPL_2202_DELETE = bytes.fromhex("28010010000022020000000100000000")
+assert len(TPL_2202_DELETE) == 16
+O_DEL_FLOWID = 12                        # 32-bit flow id @12:16
+
+TPL_2204_QUERY = bytes.fromhex("28010010000022040000000100000000")
+assert len(TPL_2204_QUERY) == 16
+O_Q_SLOT = 12                            # 32-bit flow slot @12:16
+
+
+def build_delete_tx_flow(flow_id: int, txid: int = 0x91) -> bytes:
+    """0x2202 delete of a multicast TX flow by its device flow id."""
+    p = bytearray(TPL_2202_DELETE)
+    p[O_TXID:O_TXID + 2] = txid.to_bytes(2, "big")
+    p[O_DEL_FLOWID:O_DEL_FLOWID + 4] = flow_id.to_bytes(4, "big")
+    return bytes(p)
+
+
+def build_query_flow_sdp(slot: int, txid: int = 0x90) -> bytes:
+    """0x2204 query the SDP of the flow in a given slot (1-based)."""
+    p = bytearray(TPL_2204_QUERY)
+    p[O_TXID:O_TXID + 2] = txid.to_bytes(2, "big")
+    p[O_Q_SLOT:O_Q_SLOT + 4] = slot.to_bytes(4, "big")
+    return bytes(p)
+
+
+def _delete_ok(resp) -> bool:
+    """Delete succeeded if the device echoes 0x2202 with the OK status word.
+    Capture: request `... 2202 0000 0001 0000 0010`, ACK `2801 000a <txid> 2202
+    0001 …` — the 0x0001 at bytes 8:10 is the generic ARC success marker."""
+    return bool(resp and resp[6:8].hex() == "2202" and resp[8:10] == b"\x00\x01")
+
+
+def flow_id_from_name(name: str):
+    """Dante labels a multicast flow 'DeviceName : <flowid>' in its SDP session
+    name; that trailing number is the flow id used to delete it. Confirmed:
+    's=Neutrik2IN2OUT-2 : 16' <-> delete flow id 16."""
+    if not name:
+        return None
+    m = re.search(r":\s*(\d+)\s*$", name)
+    return int(m.group(1)) if m else None
+
+
+def query_flow_sdp(device_ip: str, slot: int, timeout: float = 1.0):
+    """Return the SDP text of the flow in `slot`, or None if empty/unreachable."""
+    resp = send(device_ip, build_query_flow_sdp(slot), timeout=timeout)
+    if not resp or resp[6:8].hex() != "2204":
+        return None
+    i = resp.find(b"v=0")
+    if i < 0:
+        return None
+    return resp[i:].split(b"\x00", 1)[0].decode("ascii", "replace")
+
+
+def find_flow_id(device_ip: str, multicast_ip: str, max_slots: int = 16,
+                 timeout: float = 1.0):
+    """Ask the device (not SAP) which flow id carries a multicast, by walking its
+    flow slots and matching the SDP's c= line. Returns the flow id or None."""
+    want = f"IN IP4 {multicast_ip}"
+    for slot in range(1, max_slots + 1):
+        sdp = query_flow_sdp(device_ip, slot, timeout=timeout)
+        if not sdp:
+            continue
+        if want in sdp:
+            for line in sdp.splitlines():
+                if line.startswith("s="):
+                    fid = flow_id_from_name(line[2:])
+                    if fid is not None:
+                        return fid
+    return None
+
+
+def delete_tx_flow(device_ip: str, flow_id: int, txid: int = 0x91,
+                   timeout: float = 2.0) -> bool:
+    """Delete a multicast TX flow on the device; True iff the device ACKs."""
+    return _delete_ok(send(device_ip, build_delete_tx_flow(flow_id, txid),
+                           timeout=timeout))
 
 
 def send(device_ip: str, pkt: bytes, timeout: float = 2.0):

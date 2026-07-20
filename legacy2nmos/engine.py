@@ -199,9 +199,41 @@ class Engine:
                 if s["sdp"] in self.config["manual_sdps"]:
                     self.config["manual_sdps"].remove(s["sdp"])
                     self.config.save()
+        # For a flow that lives on one of our Dante devices, tear it down on the
+        # device itself and confirm via the device's ARC ack — do not rely on
+        # SAP. Only on explicit user delete (suppress=True), never on churn.
+        if suppress:
+            self._delete_dante_flow(s)
         self._unregister_stream(s)
         self._log(f"Removed {s['name'] or h[:8]}")
         return True
+
+    def _delete_dante_flow(self, s):
+        """Delete the multicast TX flow behind stream `s` on its Dante device and
+        log the device's acknowledgement. No-op for non-Dante flows."""
+        ip = s.get("src_ip")
+        if not ip:
+            return
+        dante_ips = {d.ip for d in self.receivers.devices}
+        if ip not in dante_ips and s["origin"] != "dante-tx":
+            return   # not one of our Dante devices — leave it alone
+        from . import dante
+        flow_id = dante.flow_id_from_name(s.get("name", ""))
+        try:
+            if flow_id is None:
+                # Name carried no id (e.g. our own pre-SAP label) — ask the
+                # device which flow serves this multicast.
+                flow_id = dante.find_flow_id(ip, s.get("mcast", ""))
+            if flow_id is None:
+                self._log(f"Delete flow on {ip}: no flow id for {s.get('mcast')} "
+                          f"— device not asked, UI hidden only")
+                return
+            ok = dante.delete_tx_flow(ip, flow_id)
+        except OSError as e:
+            self._log(f"Delete flow {flow_id} on {ip} failed: {e}")
+            return
+        self._log(f"Delete flow {flow_id} on {ip}: "
+                  f"{'device confirmed' if ok else 'NO ack from device'}")
 
     # ------------------------------------------------------------------
     # NMOS node API data (served by httpd)

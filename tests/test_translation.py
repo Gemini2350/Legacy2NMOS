@@ -107,6 +107,25 @@ def test_create_tx_flow_classic_matches_capture():
     assert pkt[64:68] == bytes([239, 68, 1, 2]) and pkt[62:64] == b"\x13\x8c"
 
 
+def test_delete_tx_flow_matches_capture():
+    # Byte-exact 0x2202 delete from delete_flow_neutrik.pcapng: flow id 16, txid 0x91.
+    assert dante.build_delete_tx_flow(16, 0x91).hex() == \
+        "28010010009122020000000100000010"
+    # The real device ack — 0x0001 success marker at bytes 8:10.
+    ack = bytes.fromhex("2801000a0091220200010000000000000000")
+    assert dante._delete_ok(ack) is True
+    # An opcode echo without the success word is not an ack.
+    assert dante._delete_ok(bytes.fromhex("2801000a009122020030")) is False
+    assert dante._delete_ok(None) is False
+
+
+def test_flow_id_from_name():
+    assert dante.flow_id_from_name("Neutrik2IN2OUT-2 : 16") == 16
+    assert dante.flow_id_from_name("AVIO-USBC : 3") == 3
+    assert dante.flow_id_from_name("Dante TX 239.69.55.55") is None
+    assert dante.flow_id_from_name("") is None
+
+
 def test_aes67_prefix_parse():
     # Tail of a real 0x1100 response with prefix 69.
     resp = bytes.fromhex("00" * 148)[:-12] + bytes.fromhex("00000000ef450000001e8480")

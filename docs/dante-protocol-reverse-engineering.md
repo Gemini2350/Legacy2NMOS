@@ -171,6 +171,15 @@ haengen nur von der Kanal-ANZAHL ab, nicht von den Kanal-Werten — daher genueg
 das Patchen von Kanal-IDs + Multicast + Port (byte-exakt getestet).
 
 Builder: `dante.build_create_tx_flow(channels, multicast, port)` /
-`create_tx_flow(...)`. >2 Kanaele brauchen weitere Captures. Delete-Flow (0x2602)
-noch offen. Der angelegte Flow wird vom Geraet per SAP announced und taucht damit
+`create_tx_flow(...)`. >2 Kanaele brauchen weitere Captures.
+
+## Multicast TX Flow loeschen — bestaetigt via delete_flow_neutrik.pcapng (2026-07-21)
+
+Flow-Management laeuft fuer ALLE Geraete ueber classic proto `0x2801`: `0x2200`
+Flow-Summary, `0x2204` Flow-SDP, `0x2202` Delete. Delete-Request (16 B):
+`2801 0010 <txid> 2202 0000 0001 <flowid:4>` — Flow-ID @12:16. Geraete-ACK:
+`2801 000a <txid> 2202 0001 …` (0x0001 @8:10 = OK). Die Flow-ID steht auch im
+SDP-Session-Namen `s=Name : <flowid>`; `0x2204` je Slot 1..N liefert die SDP,
+sodass die Flow-ID einer Multicast direkt am Geraet (ohne SAP) ermittelbar ist.
+Builder: `dante.build_delete_tx_flow`, `delete_tx_flow`, `find_flow_id`. Der angelegte Flow wird vom Geraet per SAP announced und taucht damit
 automatisch als NMOS-Sender auf.
