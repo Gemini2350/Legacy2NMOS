@@ -494,13 +494,16 @@ class Engine:
             return False, "invalid multicast address"
         from . import dante
         try:
-            ok = dante.create_tx_flow(ip, channels, multicast, port)
+            ok, variant = dante.create_tx_flow(ip, channels, multicast, port)
         except (OSError, ValueError) as e:
             return False, str(e)
         self._log(f"Create TX flow on {ip}: ch{'+'.join(map(str, channels))} "
-                  f"-> {multicast}:{port} ({'ACK' if ok else 'no ACK'})")
-        return ok, ("device acknowledged — the flow will appear as a sender via SAP"
-                    if ok else "no acknowledgement from device")
+                  f"-> {multicast}:{port} "
+                  f"({variant + ' ACK' if ok else 'no ACK'})")
+        return ok, (f"device acknowledged ({variant} flow) — the flow will appear "
+                    "as a sender via SAP" if ok else
+                    "no acknowledgement from device (neither AES67 nor classic "
+                    "flow create was accepted)")
 
     def _on_receiver_status(self, nmos_id):
         """A receiver's connection changed — update its IS-04 subscription

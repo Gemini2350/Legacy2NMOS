@@ -97,6 +97,16 @@ def test_create_tx_flow_rejects_too_many_channels():
         dante.build_create_tx_flow([1, 2, 3], "239.69.1.1")
 
 
+def test_create_tx_flow_classic_matches_capture():
+    # Byte-exact 0x2201 (proto 0x2801) create from a real Neutrik capture:
+    # 2-channel flow, multicast 239.68.90.190:5004, txid 0x4f.
+    assert dante.build_create_tx_flow_classic("239.68.90.190", 5004, 0x4f).hex() == \
+        "28010044004f2201000001010010000000100006000000000000000000010002003c" \
+        "0001000200280a000000000000000030000000000000000300000802138cef445abe"
+    pkt = dante.build_create_tx_flow_classic("239.68.1.2", 5004)
+    assert pkt[64:68] == bytes([239, 68, 1, 2]) and pkt[62:64] == b"\x13\x8c"
+
+
 def test_aes67_prefix_parse():
     # Tail of a real 0x1100 response with prefix 69.
     resp = bytes.fromhex("00" * 148)[:-12] + bytes.fromhex("00000000ef450000001e8480")

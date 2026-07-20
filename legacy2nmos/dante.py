@@ -177,12 +177,42 @@ def build_create_tx_flow(channels, multicast_ip: str, rtp_port: int = 5004,
     return bytes(p)
 
 
+# The AES67-flow create (0x2601 / proto 0x2809) is used by Brooklyn/AVIO-based
+# devices. Others (e.g. Neutrik) use the classic flow create (0x2201 / proto
+# 0x2801). Both echo their opcode on success. This 0x2201 template is byte-exact
+# for a 2-channel (ch1+2) flow from a real capture; only txid, port and the
+# multicast are patched, so it currently covers the stereo case.
+TPL_2201_2CH = bytes.fromhex(
+    "280100440000220100000101001000000010000600000000000000000001000200"
+    "3c0001000200280a000000000000000030000000000000000300000802138cef440000"
+)
+assert len(TPL_2201_2CH) == 68
+
+
+def build_create_tx_flow_classic(multicast_ip: str, rtp_port: int = 5004,
+                                 txid: int = 0x2d) -> bytes:
+    """0x2201 classic multicast TX flow (2 channels), proto 0x2801."""
+    p = bytearray(TPL_2201_2CH)
+    p[O_TXID:O_TXID + 2] = txid.to_bytes(2, "big")
+    p[62:64] = rtp_port.to_bytes(2, "big")
+    p[64:68] = socket.inet_aton(multicast_ip)
+    return bytes(p)
+
+
 def create_tx_flow(device_ip: str, channels, multicast_ip: str,
                    rtp_port: int = 5004, timeout: float = 2.0):
-    """Legt einen Multicast-TX-Flow an. Gibt True bei ACK zurueck."""
+    """Create a multicast TX flow. Tries the AES67 variant (0x2601), then the
+    classic variant (0x2201) for devices that speak it. Returns (ok, variant)."""
     pkt = build_create_tx_flow(channels, multicast_ip, rtp_port)
     resp = send(device_ip, pkt, timeout=timeout)
-    return bool(resp and resp[6:8].hex() in ("2601", "2801"))
+    if resp and resp[6:8].hex() == "2601":
+        return True, "aes67"
+    # Fall back to the classic flow create (e.g. Neutrik devices).
+    resp = send(device_ip, build_create_tx_flow_classic(multicast_ip, rtp_port),
+                timeout=timeout)
+    if resp and resp[6:8].hex() == "2201":
+        return True, "classic"
+    return False, None
 
 
 def send(device_ip: str, pkt: bytes, timeout: float = 2.0):
