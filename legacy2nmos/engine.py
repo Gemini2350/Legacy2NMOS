@@ -62,6 +62,11 @@ class Engine:
         self.config = config
         self.lock = threading.RLock()
         self.streams = {}  # hash -> stream dict
+        # Flows the user explicitly removed. A live multicast keeps getting
+        # re-announced via SAP, which would otherwise re-add the sender within
+        # seconds. We tombstone it by (mcast, port) so the delete sticks until
+        # the flow is re-created. Cleared on re-create, not persisted.
+        self.suppressed = set()
         self.log = deque(maxlen=300)
         self.running = False
         self.registry_ok = False
@@ -182,9 +187,11 @@ class Engine:
                 self.config.save()
         return h
 
-    def remove_stream(self, h):
+    def remove_stream(self, h, suppress=False):
         with self.lock:
             s = self.streams.pop(h, None)
+            if s and suppress and s.get("mcast"):
+                self.suppressed.add((s["mcast"], s.get("port")))
         if not s:
             return False
         if s["origin"] == "manual":
@@ -337,6 +344,9 @@ class Engine:
         # created (origin "dante-tx") is superseded by the device's own SAP
         # announcement (real name/channel count). Key on multicast + port.
         flow_key = (parsed.get("ip"), parsed.get("port"))
+        # A flow the user deleted stays gone despite continued SAP re-announcing.
+        if flow_key in self.suppressed:
+            return None
         if flow_key[0]:
             with self.lock:
                 dupes = [s for s in self.streams.values()
@@ -530,7 +540,9 @@ class Engine:
             return False, ("no acknowledgement from device (neither AES67 nor "
                            "classic flow create was accepted)")
         # The device confirmed the flow over ARC — register it as an NMOS sender
-        # straight away, no waiting for a SAP announcement.
+        # straight away, no waiting for a SAP announcement. Lift any tombstone
+        # from a prior delete of the same multicast so it shows again.
+        self.suppressed.discard((multicast, port))
         sdp = self._dante_tx_sdp(ip, multicast, port, len(channels))
         self._ingest(sdp, origin="dante-tx")
         return True, f"created ({variant} flow) and registered as an NMOS sender"

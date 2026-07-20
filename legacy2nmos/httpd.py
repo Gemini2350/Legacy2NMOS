@@ -215,7 +215,7 @@ def make_server(engine, config):
                     unquote(path[len("/api/cymatic/device/"):]))
                 return self.send_json({"ok": ok}, 200 if ok else 404)
             if path.startswith("/api/stream/"):
-                ok = engine.remove_stream(path[len("/api/stream/"):])
+                ok = engine.remove_stream(path[len("/api/stream/"):], suppress=True)
                 return self.send_json({"ok": ok}, 200 if ok else 404)
             if path.startswith("/api/receiver/"):
                 ok = engine.remove_receiver(path[len("/api/receiver/"):])

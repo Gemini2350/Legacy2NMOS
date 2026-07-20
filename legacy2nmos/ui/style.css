@@ -131,7 +131,7 @@ button.icon.on { background: var(--ok); border-color: var(--ok); color: #06210f;
   grid-template-columns: 1fr 1fr;
   gap: 0;
 }
-.lane { padding: 10px 14px; min-width: 0; }
+.lane { padding: 10px 14px; min-width: 0; overflow-x: auto; }
 .lane:first-child { border-right: 1px solid var(--border); }
 .lane-title {
   font-size: 0.72rem;
