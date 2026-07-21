@@ -284,15 +284,19 @@ class ReceiverManager:
                 else:
                     codes = [dev.rx_status.get(rx.dante_base_channel + i)
                              for i in range(rx.channels)]
-                    healths = {stream_health(c) for c in codes}
-                    if "no_audio" in healths:
-                        health = "no_audio"
-                    elif healths == {"connected"}:
-                        health = "connected"
-                    elif "connected" in healths:
-                        health = "no_audio"  # some channels missing audio
+                    # Only channels the device actually reported a code for count;
+                    # a None (channel name didn't parse / not returned) is "no
+                    # data", not "not subscribed", so it must not force red.
+                    present = [c for c in codes if c is not None]
+                    healths = {stream_health(c) for c in present}
+                    if not present:
+                        health = "unknown"
+                    elif "connected" in healths and healths <= {"connected"}:
+                        health = "connected"          # every reported ch has audio
+                    elif "no_audio" in healths:
+                        health = "no_audio"           # subscribed, audio not (yet) present
                     else:
-                        health = "none"
+                        health = "not_subscribed"     # active but channel(s) show code 0
                 # Keep the raw per-channel status codes for the UI / calibration
                 # — a "stuck no_audio" is then one glance away from the real code.
                 state["rx_status_codes"] = codes
