@@ -148,6 +148,7 @@ function deviceCard(d, senders, receivers) {
         <span class="mono device-ip">${esc(d.ip)}</span>
         ${d.manual ? badge("manual", "manual") : ""}
         ${d.aes67_enabled ? badge("reg", "AES67") : badge("stale", "no AES67")}
+        ${d.locked ? badge("pending", "🔒 locked") : ""}
         <span class="device-meta">${prefix}</span>
         <span class="device-meta note">${esc(d.model)} · ${rate}
           · ${d.tx_channels}tx/${d.rx_channels}rx</span>

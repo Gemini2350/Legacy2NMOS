@@ -39,6 +39,7 @@ class DanteDevice:
     rx_status: dict = field(default_factory=dict)
     manual: bool = False      # added by IP (cross-subnet), not via mDNS
     reachable: bool = True    # answered the unicast control query
+    locked: bool = False      # Dante device lock (blocks config changes)
 
 
 def _int(value):
@@ -84,6 +85,7 @@ def discover_aes67_devices():
             model=_model(dev),
             mcast_prefix=_read_prefix(str(ip)),
             rx_status=_rx_status(dev),
+            locked=_locked(dev),
         ))
     out.sort(key=lambda d: (not d.aes67_enabled, d.name.lower()))
     return out
@@ -110,6 +112,16 @@ def query_manual_device(ip):
         name=ip, ip=ip, aes67_enabled=False,
         mcast_prefix=prefix or 0, manual=True, reachable=prefix is not None,
     )
+
+
+def _locked(dev):
+    """Dante device lock state (True = locked against config changes)."""
+    v = getattr(dev, "is_locked", None)
+    try:
+        v = v() if callable(v) else v
+    except Exception:
+        return False
+    return bool(v)
 
 
 def _rx_status(dev):
