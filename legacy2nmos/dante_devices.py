@@ -22,6 +22,9 @@ from dataclasses import field
 #   14 (0x0E) = subscribed but no audio / no Tx -> unhealthy (RTP flow: "no audio")
 #    0        = not subscribed                  -> inactive
 CONNECTED_STATUS_CODES = {9, 10}
+# Subscribed but audio cannot be delivered — Dante Controller shows this red
+# ("no audio"): 14 = no transmitter / no audio, 15 = cannot receive.
+NO_AUDIO_STATUS_CODES = {14, 15}
 
 
 @dataclass
@@ -142,13 +145,19 @@ def _rx_status(dev):
 
 
 def stream_health(status_code):
-    """Classify a Dante subscription status_code for BCP-008 stream status.
+    """Classify a Dante subscription status_code for BCP-008 stream status,
+    matching the four colours Dante Controller shows per channel:
 
-    Returns 'connected' (audio flowing), 'no_audio' (subscribed, RTP flow
-    reports no audio) or 'none' (not subscribed).
+      'none'      not subscribed / no stream (code 0)          -> grey
+      'connected' resolved and receiving (codes 9/10)          -> green
+      'no_audio'  subscribed but no audio (codes 14/15)        -> red
+      'warning'   any other subscribed state (in progress /    -> yellow
+                  mismatch — Dante's yellow exclamation)
     """
     if not status_code:
         return "none"
     if status_code in CONNECTED_STATUS_CODES:
         return "connected"
-    return "no_audio"
+    if status_code in NO_AUDIO_STATUS_CODES:
+        return "no_audio"
+    return "warning"

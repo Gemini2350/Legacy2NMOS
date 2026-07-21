@@ -80,8 +80,8 @@ def _monitor_status(rx_state):
     health = rx_state.get("stream_health", "unknown")
     stream = {
         "connected": (HEALTHY, "RTP flow receiving audio"),
+        "warning": (PARTIALLY_HEALTHY, "Dante subscription warning"),
         "no_audio": (UNHEALTHY, "Dante RTP flow monitor reports no audio"),
-        "not_subscribed": (UNHEALTHY, "receiver is active but not subscribed to the flow"),
         "none": (INACTIVE, "no RTP flow on the Dante receiver"),
         # No status code from the device (not polled yet / channel not reported)
         # is "no status" — grey, not an amber warning.

@@ -206,8 +206,8 @@ function receiverRow(r) {
   const patch = r.active ? badge("reg", "active") : badge("pending", "idle");
   let flow = "";
   if (r.active) {
-    const fmap = { connected: ["reg", "audio"], no_audio: ["stale", "NO AUDIO"],
-      not_subscribed: ["stale", "not subscribed"],
+    const fmap = { connected: ["reg", "audio"], warning: ["pending", "warning"],
+      no_audio: ["stale", "NO AUDIO"],
       none: ["idle", "no status"], unknown: ["idle", "no status"] };
     const [cls, label] = fmap[r.stream_health] || fmap.unknown;
     const codes = (r.rx_status_codes || []).join(",");
